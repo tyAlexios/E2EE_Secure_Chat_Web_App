@@ -1,0 +1,33 @@
+[ req ]
+prompt = no
+default_md = sha384
+default_bits = 384
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+
+[ req_distinguished_name ]
+C = HK
+ST = Kowloon
+L = Kowloon
+O = PolyU
+OU = COMP3334
+CN = group-3.comp3334.xavier2dc.fr
+emailAddress = wengyu.zhang@connect.polyu.hk
+
+[ v3_req ]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature
+extendedKeyUsage = serverAuth
+subjectKeyIdentifier = hash
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = group-0.comp3334.xavier2dc.fr
+
+[ v3_ca ]
+basicConstraints = critical,CA:FALSE
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer
+keyUsage = digitalSignature
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names

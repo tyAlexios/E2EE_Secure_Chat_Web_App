@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- External CSS -->
+    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet"> 
+
+    <script src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit" async defer></script>
+    <style>
+        /* form i {
+            margin-left: -30px;
+            cursor: pointer;
+        } */
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+        <h2 class="text-center">Login</h2>
+        {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <div class="alert alert-danger d-none" id="captcha_info"></div>
+
+        <form action="/login" method="post" id="login_form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" class="form-control" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <!-- Reference: https://www.geeksforgeeks.org/how-to-toggle-password-visibility-in-forms-using-bootstrap-icons/ -->
+                <label for="password">Password</label>
+                <div class="input-group">
+                    <input type="password" class="form-control" id="password" name="password" required style="max-width: 90%;"> 
+                    <i class="bi bi-eye-slash" id="togglePassword" style="margin: auto;"></i>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="recovery_key">Look-Up Secrets</label>
+                <input type="text" class="form-control" id="recovery_key" name="recovery_key" required>
+            </div>
+            <center>
+                <!-- reference: https://developers.google.com/recaptcha/docs/display -->
+                <div id="captcha"></div>
+            </center>
+            <div class="form-group">
+                <label for="totp_code">TOPT Code (from Google Authenticator App)</label>
+                <input type="text" class="form-control" id="totp_code" name="totp_code" required>
+            </div>
+            <br>
+            <div class="text-center">
+                <button type="button" class="btn btn-primary" id="login_btn">Login</button>
+            </div>
+        </form>
+
+        <br>
+        <form action="/registration" method="get">
+            <div class="text-center">
+                <button type="submit" class="btn btn-outline-primary">Register</button>
+            </div>
+        </form>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs" crossorigin="anonymous"></script>
+    <script type="text/javascript">
+        // reference: https://developers.google.com/recaptcha/docs/display
+        var captcha;
+        var onloadCallback = function () {
+            captcha = grecaptcha.render('captcha', {
+                'sitekey': '6LeNkbgpAAAAAK2sfsQZmewibeBcRBjqgP1We2DF', 
+                'data-type': 'image'
+            });
+        };
+        $('#login_btn').click(function(){
+            var responseToken = grecaptcha.getResponse(captcha);
+            if (responseToken.length == 0) {
+                $('#captcha_info').removeClass('d-none');
+                $('#captcha_info').text('Captcha verification failed.');
+            } else {
+                document.getElementById("login_form").submit();
+            }
+        });
+        $('#togglePassword').click(function() {
+            $(this).toggleClass('bi-eye bi-eye-slash');
+            var passwordInput = $("#password");
+            if (passwordInput.attr("type") == "password") {
+                passwordInput.attr("type", "text");
+            } else {
+                passwordInput.attr("type", "password");
+            }
+        });
+    </script>
+</body>
+</html>

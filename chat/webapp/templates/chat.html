@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- 
+This software is provided under the BSD License. Copyright (c) 2024 Xavier de Carné de Carnavalet.
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the original author is acknowledged. See JavaScript source for full license text.
+-->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Application</title>
+    <!-- Bootstrap CSS for styling -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="chat-box">
+            <!-- marign top and padding top -->
+            <p class="pt-5 mt-5"></p>
+            <p class="pt-5 mt-5"></p>
+            <p class="pt-5 mt-5"></p>
+            <p class="pt-5 mt-5"></p>
+            <p class="pt-5 mt-5"></p>
+            <h2>Chat Application <small> - (<a href="/logout">Logout</a>)</small></h2>
+            <!-- Chat messages container -->
+            <div id="messages" style="border:1px solid #ccc; height:300px; margin-bottom:20px; overflow-y:scroll; padding:10px;"></div>
+            <!-- User selection dropdown -->
+            <select id="userList" class="form-control mb-2">
+                <option value="-1" disabled selected><i>Choose a contact</i></option>
+                <!-- User options populated here -->
+            </select>
+
+            <!-- Message input -->
+            <textarea id="messageInput" class="form-control mb-2" placeholder="Type a message..."></textarea>
+            <div class="d-flex justify-content-between">
+                <button onclick="sendEncryptedMessage()" class="btn btn-primary">Send</button>
+                <div>
+                    <button onclick="refreshKeys()" class="btn btn-secondary btn-sm">Refresh Keys</button>
+                    <button onclick="eraseChat()" class="btn btn-danger btn-sm">Erase Chat</button>
+                </div>
+            </div>
+        </div>
+        <hr>
+        <h3 style="text-align: center;">Change Authenticators</h3>
+        <div class="form-group" style="display: flex; justify-content: space-around;">
+            <div style="width: 50%; padding: 10px;">
+                <div style="display: flex; justify-content: space-around;">
+                    <div style="max-width: 45%; text-align: center;">
+                        <button type="button" id="change_recovery_key" class="btn btn-primary">Get New Look-Up Secret</button>
+                    </div>
+                    <div style="max-width: 45%; text-align: center;">
+                        <button type="button" id="cancel_button_1" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top: 5px;">
+                    <label for="show_new_recovery_key">1. Get New Look-Up Secret; 2. Repeat New Look-Up Secret; 3. Save New Look-Up Secret</label>
+                    <p></p>
+                    <font style="color: red;"><b>Please Remember and Write Down Your Look-Up Secret on Physical Paper, It Will Only Appears Once</b></font>
+                    <p></p>
+                    <input type="text" class="form-control" id="show_new_recovery_key" name="show_new_recovery_key" disabled>
+                    <br>
+                    <input type="text" class="form-control" id="input_new_recovery_key" name="input_new_recovery_key" placeholder="Repeat Your Look-Up Secret Here">
+                </div>
+                <br>
+                <center>
+                    <button type="submit" class="btn btn-primary" id="save_new_recovery_key">Save Look-Up Secret</button>
+                </center>
+            </div>
+        
+            <div style="width: 50%; padding: 10px;">
+                <center>
+                    <img id="new_totp_image" src="data:image/png;base64,{{otpQRCode}}" width="50%" class="d-none">
+                </center>
+                <div style="display: flex; justify-content: space-around;">
+                    <div style="width: 45%; text-align: center;">
+                        <button type="button" id="change_otp" class="btn btn-primary">Get New TOTP</button>
+                    </div>
+                    <div style="width: 45%; text-align: center;">
+                        <button type="button" id="cancel_button_2" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="new_totp_code">1. Get New TOTP;<br>2. Scan QR Code with Google Authenticator App;<br>3. Input New TOPT Code<br>4. Save New TOPT</label>
+                    <p></p>
+                    <input type="text" class="form-control" id="new_totp_code" name="new_totp_code" placeholder ="Enter the TOTP" required>
+                </div>
+                <br>
+                <center>
+                    <button type="submit" class="btn btn-primary" id="save_new_otp">Save TOTP</button>
+                </center>
+            </div>
+        </div>
+        <br>
+        <br>
+        <br>
+        <br>
+    </div>
+
+    <!-- jQuery for simplified JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs" crossorigin="anonymous"></script>
+    <script type="text/javascript">
+    // change Authentication
+    $('#change_recovery_key').click(function() {
+        fetch('/change_recovery_key', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            $('#show_new_recovery_key').val(data.recoveryKey);
+        });
+    });
+    $('#save_new_recovery_key').click(function() {
+
+        var confirmed = confirm('Are you sure you want to save the new Look-Up Secret?');
+            if (confirmed) {
+                fetch('/validate_and_save_recovery_key', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ input_new_recovery_key: $('#input_new_recovery_key').val() })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status == 'success') {
+                        alert('Look-Up Secret saved!');
+                        $("#show_new_recovery_key").val("");
+                        $("#input_new_recovery_key").val("");
+                    } else {
+                        alert('Recovery Key validation failed!');
+                    }
+                });
+            } else {
+                $("#show_new_recovery_key").val("");
+                $("#input_new_recovery_key").val("");
+            }
+    });
+    $('#change_otp').click(function() {
+        fetch('/change_otp_image', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            $('#new_totp_image').attr('src', 'data:image/png;base64,' + data.otpQRCode);
+            $('#new_totp_image').removeClass('d-none');
+        });
+    });
+
+    $('#save_new_otp').click(function() {
+        var confirmed = confirm('Are you sure you want to save the new TOTP?');
+            if (confirmed) {
+                fetch('/validate_and_save_totp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ new_totp_code: $('#new_totp_code').val() })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status == 'success') {
+                        alert('TOTP saved!');
+                        $("#new_totp_code").val("");
+                        $("#new_totp_image").addClass('d-none');
+                    } else {
+                        alert('TOTP validation failed!');
+                    }
+                });
+            } else {
+                $("#new_totp_code").val("");
+                $("#new_totp_image").addClass('d-none');
+            }
+    });
+    $('#cancel_button_1').click(function() {
+        $("#show_new_recovery_key").val("");
+        $("#input_new_recovery_key").val("");
+    });
+    $('#cancel_button_2').click(function() {
+        $("#new_totp_code").val("");
+        $("#new_totp_image").addClass('d-none');
+    });
+
+    // Global variables
+    let lastMessageId = 0;
+    let peer_id = -1;
+    const myID = {{ sender_id }};
+    let userInfo = {};
+
+    var ECKeyPair_Crypto = {
+        publicKey: null,
+        privateKey: null
+    };
+    var salt_IV_recorder = [];
+    /*
+    const salt_IV = {
+        user_id: int, (peer_id)
+        salt: int,
+        iv: int
+    }
+    */
+    var ring_AES_MAC_Keys = [];
+    /*const key = {
+        sender_id: int,
+        receiver_id: int,
+        salt: int,
+        AES_Key: CryptoKey,
+        MAC_Key: CryptoKey
+    }*/
+    var last_IVs = [];
+    /*const iv = {
+        sender_id: int,
+        receiver_id: int,
+        salt: int,
+        iv: int
+    }*/
+
+    
+    // Fetch users from server
+    $(document).ready(function() {
+        fetch('/users')
+            .then(response => response.json())
+            .then(data => {
+                data.users.forEach(user => {
+                    userInfo[user[0]] = user[1]; // Map user_id to username
+                });
+                console.log(userInfo);
+                console.log(data.users);
+                populateUsers(data.users);
+            })
+            .catch(error => console.error('Error fetching user info:', error));
+    });
+
+    async function POST_request(url, payload)
+    {
+        return await fetch(
+            url, 
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            }
+        );
+    }
+
+    function bufferToHex(buffer) {
+        return Array.from(new Uint8Array(buffer))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+    }
+
+    // Fetch peer's publicKey from server
+    async function fetchPublicKey() {
+        try{
+            if (peer_id === -1) return; // Exit if no peer selected
+            const payload = {
+                user_id: peer_id,
+            };
+            const response = await POST_request('/fetch_publicKey', payload);
+            if (response.ok)
+            {
+                const data = await response.json()
+                if (data.public_key == null)
+                    throw new Error('Wrong public key fetched');
+                const peer_publicKey_JWK = await JSON.parse(data.public_key);
+                console.log( `Fetch public key of peer (${peer_id}): ${peer_publicKey_JWK}`)
+                return peer_publicKey_JWK;
+            }
+            else
+            {
+                throw new Error(response.error);
+            }
+        }
+        catch(error)
+        {
+            console.error('Error fetching peer\'s publicKey:', error);
+        }
+    }
+
+    // Fetch salt from peer through server
+    async function fetchSaltIV()
+    {
+        try
+        {
+            const payload = {
+                sender_id: myID,
+                receiver_id: peer_id
+            };
+            const response = await POST_request('/fetch_salt_iv', payload);
+            if (response.ok)
+            {
+                const data = await response.json();
+                const salt_int = data.salt;
+                const iv_int = data.iv;
+                return [salt_int, iv_int];
+            }
+            else
+            {
+                throw new Error(response.error);
+            }
+        } catch (error) {
+            console.error('Error fetching salt and encryptIV:', error);
+        }
+    }
+
+    async function convertBitsToCryptoKey(bits, hash = "SHA-256") {
+        return await crypto.subtle.importKey(
+            "raw",
+            bits,
+            { name: "HKDF", hash: hash },
+            false,
+            ["deriveKey"]
+        );
+    }
+    // derive shared secret
+    // References:
+    // https://github.com/mdn/dom-examples/blob/main/web-crypto/derive-key/ecdh.js
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey
+    async function deriveSharedSecret(peerPublicKey, myPrivateKey) {
+        try {
+            const sharedSecretBits = await crypto.subtle.deriveBits(
+                {   
+                    name: "ECDH",
+                    public: peerPublicKey
+                },
+                myPrivateKey,
+                256
+            );
+            console.log("Derived Shared Secret Bits(Hex):", bufferToHex(sharedSecretBits));
+            const sharedSecret = await convertBitsToCryptoKey(sharedSecretBits);
+            console.log('Generate shared Secret Key: ', sharedSecret);
+            return sharedSecret;
+        } catch (error) {
+            console.error('Error deriving shared secret:', error);
+        }
+    }
+
+    // derive AES Key using HKDF-SHA256
+    // Reference:
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey
+    async function deriveAESKey(sharedSecret, start_id, end_id, salt) {
+        const info = new TextEncoder().encode(`CHAT_KEY_USER${start_id}to${end_id}`);
+        const AESKey = await crypto.subtle.deriveKey(
+            {
+                name: "HKDF",
+                salt: salt,
+                info: info,
+                hash: "SHA-256",
+            },
+            sharedSecret,
+            {
+                name: "AES-GCM",
+                length: 256,
+            },
+            true,
+            ["encrypt", "decrypt"]
+        );
+        const AESKey_JWK = await exportKey2JWK(AESKey);
+        console.log("Derive AES key: ", AESKey_JWK);
+        return AESKey;
+    }
+
+    // derive MAC Key using HKDF-SHA256
+    // Reference:
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey
+    async function deriveMACKey(sharedSecret, start_id, end_id, salt) {
+        const info = new TextEncoder().encode(`CHAT_KEY_USER${start_id}to${end_id}`);
+        const MACKey = await crypto.subtle.deriveKey(
+            {
+                name: "HKDF",
+                salt: salt,
+                info: info,
+                hash: "SHA-256",
+            },
+            sharedSecret,
+            { 
+                name: "HMAC", 
+                hash: "SHA-256",
+                length: 256 
+            },
+            true,
+            ["sign", "verify"]
+        );
+        const MACKey_JWK = await exportKey2JWK(MACKey);
+        console.log("Derive MAC key: ", MACKey_JWK);
+        return MACKey;
+    }
+
+    async function loadPrivateKeyFromJWK() {
+        try {
+            const jwkString = await localStorage.getItem(`privateKey_${myID}`);
+            if (!jwkString) {
+                throw new Error("No private key found in local storage.");
+            }
+            const key_jwk = JSON.parse(jwkString);
+            console.log("Loaded private key from local storage:", key_jwk);
+            return key_jwk;
+        } catch (error) {
+            console.error("Error loading private key:", error);
+        }
+    }
+
+
+    async function genSharedSecret()
+    {
+        const my_privateKey_JWK = await loadPrivateKeyFromJWK();
+        const my_privateKey = await importECDHKeyFromJWK(my_privateKey_JWK);
+        const peer_publicKey_JWK = await fetchPublicKey(peer_id);
+        const peer_publicKey = await importECDHKeyFromJWK(peer_publicKey_JWK);
+        return await deriveSharedSecret(peer_publicKey, my_privateKey);
+    }
+    async function genKeys(user_id)
+    {
+        sharedSecret = await genSharedSecret();
+        const result = await fetchSaltIV();
+        const [salt_int, IV_int] = result;
+        const salt_Unit8 = await new Uint8Array([salt_int]);
+        const AES_Key = await deriveAESKey(sharedSecret, myID, user_id, salt_Unit8);
+        const MAC_Key = await deriveMACKey(sharedSecret, myID, user_id, salt_Unit8);
+        await insert_Key(myID, user_id, salt_int, AES_Key, MAC_Key);
+        const new_salt_IV = {
+            user_id: user_id,
+            salt: salt_int,
+            iv: IV_int
+        }
+        salt_IV_recorder.push(new_salt_IV);
+        return [salt_int, IV_int, AES_Key, MAC_Key];
+    }
+
+
+    // Reference:
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/sign
+    // tianyi
+    async function HMAC(HMAC_key, data) // -> ArrayBuffer
+    {
+        const encoder = new TextEncoder();
+        const encoded_data = encoder.encode(data);
+        return await crypto.subtle.sign(
+            {
+                name: "HMAC",
+                hash: "SHA-256",
+            },
+            HMAC_key,
+            encoded_data
+        );
+    }
+
+    async function resetEncryptionKey(newKey) {
+        AESKey = newKey; 
+        ivCounter = 0; 
+    }
+
+    // To encode message before encryption
+    // Reference: https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/encrypt#examples
+    async function getMessageEncoding() {
+        const text_encoder = await new TextEncoder();
+        return text_encoder.encode($("#messageInput").val());
+    }
+
+    async function encryptMessage(messages_encoding, AES_encryptKey, IV_Unit8) {
+        try {
+            const associated_data = await new TextEncoder().encode(`CHAT_MSG_USER${myID}to${peer_id}`); //Associated data should reflect the current context (e.g., "CHAT_MSG_USER1to2")
+            const encrypted_message = await crypto.subtle.encrypt(
+                {
+                    name: "AES-GCM", // Messages will be encrypted using AES in GCM mode
+                    iv: IV_Unit8, // 96-bit IVs are counters representing the number of messages encrypted with the same key
+                    additionalData: associated_data,
+                    tagLength: 128 //Authentication tags should be 128 bits
+                },
+                AES_encryptKey,
+                messages_encoding
+            );
+            console.log('Encrypted Successfully, Encrypted message: ', encrypted_message);
+            return encrypted_message;
+        } catch (error) {
+            console.error('Error encrypting message:', error);
+        }
+    }
+
+
+    async function getSaltIV(user_id)
+    {
+        for (let i=0; i<salt_IV_recorder.length; ++i)
+        {
+            if ( salt_IV_recorder[i].user_id == user_id )
+                return i;
+        }
+        return -1;
+    }
+
+    async function updateSaltIV(sender_id, receiver_id, salt, iv)
+    {
+        try
+        {
+            const payload = {
+                sender_id: sender_id,
+                receiver_id, receiver_id,
+                salt: salt,
+                iv: iv
+            };
+            const response = await POST_request('/update_salt_IV', payload);
+            if (response.ok)
+            {
+                console.log('IV update: ', response.data);
+                return;
+            }
+            else
+            {
+                throw new Error(response.error);
+            }
+        }
+        catch(error)
+        {
+            console.error('update Salt IV Error: ', error);
+        }
+    }
+    
+    async function sendEncryptedMessage() {
+        if ($("#messageInput") === '') {
+            alert('Please input message first');
+            return; 
+        }
+        if (peer_id == -1) 
+        {
+            alert('WARNING: Please select peer from user list first!');
+            return;
+        }
+        try
+        {
+            const ret = await getSaltIV(peer_id);
+            var AES_Key = null;
+            var MAC_Key = null;
+            var salt_int = null;
+            var IV_int = null;
+            if (ret != -1)
+            {
+                salt_int = salt_IV_recorder[ret].salt;
+                IV_int = salt_IV_recorder[ret].iv;
+                for (let i=0; i<ring_AES_MAC_Keys.length; ++i)
+                {
+                    if ( ring_AES_MAC_Keys[i].sender_id == myID && ring_AES_MAC_Keys[i].receiver_id == peer_id && ring_AES_MAC_Keys[i].salt == salt_int )
+                    {
+                        AES_Key = ring_AES_MAC_Keys[i].AES_Key;
+                        MAC_Key = ring_AES_MAC_Keys[i].MAC_Key;
+                    }
+                }
+            }
+            else
+            {
+                const result = await genKeys(peer_id);
+                [salt_int, IV_int, AES_Key, MAC_Key] = result;
+            }
+            const messages_encoding = await getMessageEncoding();
+            const IV_Unit8 = await new Uint8Array([IV_int]);
+            const encrypted_message = await encryptMessage(messages_encoding, AES_Key, IV_Unit8);
+            const HMAC_IV = await HMAC(MAC_Key, IV_Unit8);
+            
+            const encrypted_message_b64 = await arrayBufferToBase64(encrypted_message);
+            const HMAC_IV_b64 = await arrayBufferToBase64(HMAC_IV);
+            
+            const payload = {
+                receiver_id: peer_id,
+                encrypted_message: encrypted_message_b64,
+                salt: salt_int,
+                iv: IV_int,
+                HMAC_iv: HMAC_IV_b64
+            };
+            const response = await POST_request('/send_encrypted_message', payload);
+            console.log(response);
+            if (response.ok) {
+                console.log("Encrypted_message, deriveKey_salt, IV and HMAC_IV sent: ", payload);
+                var new_salt = -1;
+                for (let i=0; i<salt_IV_recorder.length; ++i)
+                {
+                    if ( salt_IV_recorder[i].user_id == peer_id && salt_IV_recorder[i].salt == salt_int )
+                    {
+                        salt_IV_recorder[i].iv += 1;
+                        new_salt = salt_IV_recorder[i].iv;
+                    }
+                }
+                // updateSaltIV(myID, peer_id, salt_int, new_salt);
+                $("#messageInput").val('');
+                return await response.json(); // Parse JSON response from the server
+            }
+            else
+            {
+                $("#messageInput").val('');
+                throw new Error(response.error);
+            }
+        }
+        catch(error)
+        {
+            $("#messageInput").val('');
+            console.error("Error sending encrypted data", error);
+        }
+    }
+
+
+    async function check_Key(sender_id, receiver_id, salt) // salt is int
+    {
+        if (!ring_AES_MAC_Keys)
+            return null;
+        for (let i = 0; i < ring_AES_MAC_Keys.length; i++)
+        {
+            if ( ring_AES_MAC_Keys[i].sender_id != sender_id )
+                continue;
+            if ( ring_AES_MAC_Keys[i].receiver_id != receiver_id )
+                continue;
+            if ( ring_AES_MAC_Keys[i].salt != salt )
+                continue;
+            return await ring_AES_MAC_Keys[i];
+        }
+        return null;
+    }
+
+    async function insert_Key(sender_id, receiver_id, salt, AES_Key, MAC_Key)
+    {
+        const AES_MAC_Key = {
+            sender_id: sender_id,
+            receiver_id: receiver_id,
+            salt: salt,
+            AES_Key: AES_Key,
+            MAC_Key: MAC_Key
+        }
+        await ring_AES_MAC_Keys.push(AES_MAC_Key);
+    }
+
+    async function IV_integrity_verify(IV, HMAC_IV_Tag, MAC_key)
+    {
+        const HMAC_IV = await HMAC(MAC_key, IV);
+        if (! HMAC_IV === HMAC_IV_Tag)
+            return true;
+        return false;
+    }
+
+    async function IV_replay_verify(sender_id, receiver_id, salt, cur_IV)
+    {
+        var last_IV = -1;
+        for (let i=0; i<last_IVs.length; ++i)
+        {
+            if ( last_IVs[i].sender_id == sender_id && last_IVs[i].receiver_id == receiver_id && last_IVs[i].salt == salt )
+            {
+                last_IV = last_IVs[i].iv;
+                if ( cur_IV > last_IV )
+                {
+                    last_IVs[i].iv = cur_IV;
+                    return false;
+                }
+                else
+                {
+                    return true;
+                }
+            } 
+        }
+        var last_IV_info = {
+            sender_id: sender_id,
+            receiver_id: receiver_id,
+            salt: salt,
+            iv: cur_IV
+        }
+        await last_IVs.push(last_IV_info);
+        return false;
+    }
+    // Fetch messages from server
+    // tianyi changed
+    async function fetchEncryptedMessages() 
+    {
+        try{
+            if (peer_id === -1) return;
+            const payload = {
+                last_message_id: lastMessageId,
+                peer_id: peer_id
+            };
+            const response = await POST_request('/fetch_encrypted_messages', payload);
+            if (response.ok)
+            {
+                const data = await response.json();
+                const message_infos = data.messages;
+                if (!message_infos) // no new messages
+                    return;
+                
+                for (let i = 0; i < message_infos.length; i++) 
+                {
+                    // var replay = false;
+                    // var alerted = false;
+                    const message_info = message_infos[i];
+                    const sender_id = message_info.sender_id;
+                    const receiver_id = message_info.receiver_id;
+
+                    const ciphertext_b64 = message_info.ciphertext;
+                    const ciphertext = await base64ToArrayBuffer(ciphertext_b64);
+
+                    const salt_int = message_info.salt;
+                    const deriveKeySalt_Unit8 = await new Uint8Array([salt_int]);
+
+                    const IV_int = message_info.IV;
+                    
+                    /*
+                    if (await IV_replay_verify(sender_id, receiver_id, salt_int, IV_int))
+                    {
+                        alert('WARNING: IV replay verification failed! Someone attacks with replaying IV!');
+                        console.log('WARNING: IV replay verification failed! Someone attacks with replaying IV!: ', message_info);
+                        lastMessageId = message_info.message_id;
+                        continue;
+                    }*/
+                    const IV_Unit8 = await new Uint8Array([IV_int]);
+
+                    const HMAC_IV_b64 = message_info.HMAC_IV;
+                    const HMAC_IV = await base64ToArrayBuffer(HMAC_IV_b64);
+                    
+                    const AES_MAC_Key = await check_Key(sender_id, receiver_id, salt_int);
+                    var AES_Key = null;
+                    var MAC_Key = null;
+                    if (AES_MAC_Key)
+                    {
+                        AES_Key = AES_MAC_Key.AES_Key;
+                        MAC_Key = AES_MAC_Key.MAC_Key;
+                    }
+                    else
+                    {
+                        const sharedSecret = await genSharedSecret();
+                        AES_Key = await deriveAESKey(sharedSecret, sender_id, receiver_id, deriveKeySalt_Unit8);
+                        MAC_Key = await deriveMACKey(sharedSecret, sender_id, receiver_id, deriveKeySalt_Unit8);
+                        await insert_Key(sender_id, receiver_id, salt_int, AES_Key, MAC_Key);
+                    }
+                    /*
+                    if (await IV_integrity_verify(IV_Unit8, HMAC_IV, MAC_Key))
+                    {
+                        alert('WARNING: IV integrity verification failed! Someone alerted the IV!');
+                        console.log('WARNING: IV integrity verification failed! Someone alerted the IV!: ', message_info);
+                        lastMessageId = message_info.message_id;
+                        continue;
+                    }*/
+                    const plaintext = await decryptMessage(ciphertext, AES_Key, IV_Unit8, sender_id, receiver_id);
+                    
+                    await displayMessage(plaintext, sender_id, receiver_id);
+                    lastMessageId = message_info.message_id;
+                }
+            }
+            else
+            {
+                throw new Error(response.error);
+            }
+        }
+        catch(error)
+        {
+            console.error('Error fetching messages:', error);
+        }
+    }
+
+    // Display a single message
+    async function displayMessage(plaintext, sender_id, receiver_id) {
+        const messagesContainer = document.getElementById('messages');    
+        const messageElement = document.createElement('div');
+        messageElement.style.borderRadius = '5px';
+        // Determine sender and receiver strings
+        const sender = sender_id == myID ? "me" : (userInfo[sender_id] || `User ${sender_id}`);
+        const receiver = receiver_id == myID ? "me" : (userInfo[receiver_id] || `User ${receiver_id}`);
+        messageElement.textContent = `From ${sender} to ${receiver}: ${plaintext}`;
+        if (sender_id == myID) {
+            messageElement.style.backgroundColor = '#d4edda';
+        } else {
+            messageElement.style.backgroundColor = '#dfe0e1';
+        }
+        messagesContainer.appendChild(messageElement);
+    }
+
+
+    async function decryptMessage(ciphertext, AES_Key, IV_Unit8, sender_id, receiver_id) {
+        try {
+            const associated_data = await new TextEncoder().encode(`CHAT_MSG_USER${sender_id}to${receiver_id}`);
+            const decrypted_message = await crypto.subtle.decrypt(
+                {
+                    name: "AES-GCM",
+                    iv: IV_Unit8,
+                    tagLength: 128,
+                    additionalData: associated_data
+                },
+                AES_Key,
+                ciphertext
+            );
+            
+            const plaintext = await new TextDecoder().decode(decrypted_message);
+            console.log('Decrypted message: ', plaintext);
+            return plaintext;
+        } catch (error) {
+            console.error('Error decrypting message:', error);
+        }
+    }
+    
+
+    // Refresh Keys function placeholder
+    async function refreshKeys() 
+    {
+        const peers = userInfo;
+        for (let i=0; i<userInfo.length; ++i)
+        {
+            const cur_peer_id = userInfo[i][0];
+            const payload = {
+                user_id: cur_peer_id
+            }
+            const response = await POST_request('/refresh_keys', payload);
+            if (response.ok)
+            {
+                console.log('Key refreshed');
+                return;
+            }
+            else
+            {
+                return;
+            }
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // Populate users function
+    function populateUsers(users) {
+        const userListDropdown = document.getElementById('userList');
+        
+        users.forEach(user => {
+            const option = new Option(user[1], user[0]); // username as text, user_id as value
+            userListDropdown.add(option);
+        });
+    }
+
+    // Handle user selection change
+    document.getElementById('userList').addEventListener('change', event => {
+        peer_id = parseInt(event.target.value, 10); // Convert selected peer_id to integer
+        clearChatBox();
+        lastMessageId = 0;
+        last_IVs.length = 0;
+        fetchEncryptedMessages(); // Fetch messages for the new selection
+        // generateKeyEC();
+        
+    });
+
+    // Clear chat box
+    function clearChatBox() {
+        document.getElementById('messages').innerHTML = '';
+    }
+
+    
+    // Erase Chat function using fetch API
+    function eraseChat() {
+        if (peer_id === -1) return; // Exit if no peer selected
+        if (!confirm('Are you sure you want to erase the chat with '+userInfo[peer_id]+'?')) return; // Confirmation before erasing
+
+        fetch(`/erase_chat`, {
+            method: 'POST',  // A REST API should use POST if it leads to modifications
+            headers: {
+                'Content-Type': 'application/json', 
+            },
+            body: JSON.stringify({ peer_id: peer_id })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json(); // Assuming the server responds with JSON
+        })
+        .then(data => {
+            console.log('Chat erased:', data);
+            clearChatBox(); // Clear the chat display
+        })
+        .catch(error => {
+            console.error('Error erasing chat:', error);
+        });
+    }
+
+
+
+    // Ctrl+Enter to send message
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('messageInput').addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    });
+
+    async function exportKey2JWK(key_Crypto) {
+        try {
+            const exportedKey = await crypto.subtle.exportKey("jwk", key_Crypto);
+            return exportedKey;
+        } catch (error) {
+            console.error("Error exporting key:", error);
+        }
+    }
+
+    async function importECDHKeyFromJWK(key_JWK) {
+        try {
+            const key_Crypto = await crypto.subtle.importKey(
+                "jwk",
+                key_JWK,
+                {
+                    name: "ECDH",
+                    namedCurve: key_JWK.crv
+                },
+                key_JWK.ext,
+                key_JWK.key_ops
+            );
+            console.log("Imported ECDH CryptoKey:", key_Crypto);
+            return key_Crypto;
+        } catch (error) {
+            console.error('Error importing ECDH key from JWK:', error);
+        }
+    }
+
+
+    async function addBase64Padding(base64) {
+        while (base64.length % 4 !== 0) {
+            base64 += '=';
+        }
+        return base64;
+    }
+
+
+
+    async function base64ToArrayBuffer(base64) {
+        try{
+            console.log('Base64:', base64);
+            const base64_padded = await addBase64Padding(base64);
+            console.log('Base64 padded:', base64_padded);
+            
+            const binaryString = await window.atob(base64_padded);
+            console.log('Binary string:', binaryString);
+            const len = binaryString.length;
+            const bytes = await new Uint8Array(new ArrayBuffer(len));
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i); 
+            }
+            return await bytes.buffer;
+        } catch (error) {
+            console.error('>>>Error converting base64 to array buffer:', error);
+        }
+    }
+    
+    async function arrayBufferToBase64(buffer) {
+        const bytes = await new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return await window.btoa(binary);
+    }
+
+
+    // Periodically fetch new messages every second
+    setInterval(fetchEncryptedMessages, 1000); 
+    </script>
+</body>
+</html>

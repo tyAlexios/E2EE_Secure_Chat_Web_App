@@ -1,0 +1,12 @@
+Flask==3.0.2
+gunicorn==21.2.0
+Flask-MySQLdb==2.0.0
+Flask-Session==0.6.0
+cryptography==42.0.5
+PyYAML==6.0.1
+Flask-SocketIO==5.3.6
+eventlet==0.35.2
+pyotp==2.9.0
+qrcode==7.4.2
+requests==2.20.1
+pycryptodome==3.20.0

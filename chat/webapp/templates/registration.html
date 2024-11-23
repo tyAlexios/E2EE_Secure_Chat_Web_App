@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- External CSS -->
+    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
+    <script src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit" async defer></script>
+</head>
+<body>
+    <div class="login-container mt-5">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+        <h2 class="text-center">Registration</h2>
+        {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+        <form action="/registration" method="post" id="reg_form">
+            <h4>1. Memorized Secret Authenticators</h4>
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" class="form-control" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-group">
+                    <input type="password" class="form-control" id="password" name="password" required style="max-width: 90%;"> 
+                    <i class="bi bi-eye-slash" id="togglePassword" style="margin: auto;"></i>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="repeatPassword">Repeat Password</label>
+                <div class="input-group">
+                    <input type="password" class="form-control" id="repeatPassword" name="repeatPassword" required style="max-width: 90%;"> 
+                    <i class="bi bi-eye-slash" id="togglePassword2" style="margin: auto;"></i>
+                </div>
+            </div>
+            <hr>
+            <div class="form-group">
+                <h4>2. Look-Up Secrets</h4>
+                <center>
+                    <button type="button" id="get_recovery_key" class="btn btn-primary">Get Look-Up Secrets</button>
+                </center>
+                <br>
+                <div class="form-group">
+                    <label for="show_recovery_key">1. Get Look-Up Secrets; 2. Repeat Look-Up Secrets</label>
+                    <p></p>
+                    <font style="color: red;"><b>Please Remember and Write Down Your Look-Up Secrets on Physical Paper, It Will Only Appears Once</b></font>
+                    <p></p>
+                    <input type="text" class="form-control" id="show_recovery_key" name="show_recovery_key" disabled>
+                    <br>
+                    <input type="text" class="form-control" id="input_recovery_key" name="input_recovery_key" placeholder="Repeat Look-Up Secrets Here" required>
+                </div>
+                <hr>
+                <h4>3. Image-based CAPTCHAs</h4>
+                <center>
+                    <!-- reference: https://developers.google.com/recaptcha/docs/display -->
+                    <div id="captcha"></div>
+                </center>
+                <hr>
+                <h4>4. Single-Factor TOTP</h4>
+                <center>
+                    <img id="totp_image" src="data:image/png;base64,{{otpQRCode}}" width="50%" class="d-none">
+                </center>
+                <center>
+                    <button type="button" id="get_otp" class="btn btn-primary">Get TOTP</button>
+                </center>
+                <div class="form-group" id="input_otp">
+                    <label for="totp_code">1. Get TOTP;<br>2. Scan QR Code with Google Authenticator App;<br>3. Input TOPT Code</label>
+                    <input type="text" class="form-control" id="totp_code" name="totp_code" required>
+                </div>
+            </div>
+            <div class="text-center">
+            <div class="g-recaptcha" data-sitekey="6Ldx5rYpAAAAADxuhN3agHImVt_MVAARgh-oTf-a"></div>
+            </div>
+            <hr>
+            <div class="text-center">
+                <button type="button" class="btn btn-primary" id="reg_btn">Register</button>
+            </div>
+        </form>
+        <br>
+        <form action="/login" method="get">
+            <div class="text-center">
+                <button type="submit" class="btn btn-outline-primary">Back to Login</button>
+            </div>
+        </form>
+    </div>
+    <br>
+    <br>
+    <br>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs" crossorigin="anonymous"></script>
+    <script type="text/javascript">        
+        // reference: https://developers.google.com/recaptcha/docs/display
+        var captcha;
+        var onloadCallback = function () {
+            captcha = grecaptcha.render('captcha', {
+                'sitekey': '6LeNkbgpAAAAAK2sfsQZmewibeBcRBjqgP1We2DF', 
+                'data-type': 'image'
+            });
+        };
+        $('#get_recovery_key').click(function() {
+            var username = $('#username').val();
+            if (!username) {
+                alert('Please input username first.');
+                return;
+            }
+            fetch('/get_recovery_key', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({username: username})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    $('#show_recovery_key').val(data.recoveryKey);
+                });
+        });
+        $('#get_otp').click(function() {
+            var responseToken = grecaptcha.getResponse(captcha);
+            if (responseToken.length == 0) {
+                alert('Please complete the captcha verification first.');
+                return;
+            } 
+            var username = $('#username').val();
+            if (!username) {
+                alert('Please input username first.');
+                return;
+            }
+            fetch('/get_otp_image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({username: username})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    $('#totp_image').attr('src', 'data:image/png;base64,' + data.otpQRCode);
+                    $('#totp_image').removeClass('d-none');
+                });
+        });
+        // toggle password visibility
+        $('#togglePassword').click(function() {
+            $(this).toggleClass('bi-eye bi-eye-slash');
+            var passwordInput = $("#password");
+            if (passwordInput.attr("type") == "password") {
+                passwordInput.attr("type", "text");
+            } else {
+                passwordInput.attr("type", "password");
+            }
+        });
+        $('#togglePassword2').click(function() {
+            $(this).toggleClass('bi-eye bi-eye-slash');
+            var passwordInput = $("#repeatPassword");
+            if (passwordInput.attr("type") == "password") {
+                passwordInput.attr("type", "text");
+            } else {
+                passwordInput.attr("type", "password");
+            }
+        });
+
+        async function exportKey2JWK(key_Crypto) {
+            try {
+                const exportedKey = await crypto.subtle.exportKey("jwk", key_Crypto);
+                return exportedKey;
+            } catch (error) {
+                console.error("Error exporting key:", error);
+            }
+        }
+        
+        // Reference: https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey
+        async function generateKeyEC() {
+            try {
+                const keyPair = await crypto.subtle.generateKey(
+                    { name: "ECDH", namedCurve: "P-384" },
+                    true,
+                    ["deriveKey", "deriveBits"]
+                );
+                
+                const publicKey_JWK = await exportKey2JWK(keyPair.publicKey);
+                console.log( `Generate EC public key: ${JSON.stringify(publicKey_JWK)}` );
+                const privateKey_JWK = await exportKey2JWK(keyPair.privateKey);
+                console.log( `Generate EC private key: ${JSON.stringify(privateKey_JWK)}` );
+
+                return {publicKey_JWK, privateKey_JWK};
+            } catch (error) {
+                console.error('Error generating publicKey:', error);
+            }
+        }
+
+
+
+        $('#reg_btn').click(async function(event) {
+            try
+            {
+                event.preventDefault();
+                const {publicKey_JWK, privateKey_JWK} = await generateKeyEC();
+
+                console.log( `EC public key (in JWK type): ${JSON.stringify(publicKey_JWK)}` );
+                const formData = {
+                    username: $('#username').val(),
+                    password: $('#password').val(),
+                    repeatPassword: $('#repeatPassword').val(),
+                    otpCode: $('#totp_code').val(),
+                    recoveryKey: $('#input_recovery_key').val(),
+                    publicKey: JSON.stringify(publicKey_JWK),
+                };
+                console.log('Registration form data to sent:', formData);
+                const response = await fetch('/registration', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData),
+                })
+                console.log('Registration response:', response);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const user_id = data.user_id;
+                    console.log(user_id);
+                    localStorage.setItem(`privateKey_${user_id}`, JSON.stringify(privateKey_JWK));
+                    console.log( `Store EC private key (in JWK type) to local device: ${JSON.stringify(privateKey_JWK)}` );
+                    window.location.href = '/login'; // got to the login page
+                } else {
+                    const errorData = await response.json();
+                    console.error('Registration failed:', errorData.error);
+                    alert(JSON.stringify(errorData));
+                }
+            }
+            catch(error)
+            {
+                console.error('Registration failed:', error);
+                alert(error);
+            }
+        });
+        
+        
+
+    </script>
+</body>
+</html>
